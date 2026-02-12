@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Vintage Online Photo Booth</title>
+  <meta name="description" content="Take 3 photos and get a classic vintage photo strip." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Special+Elite&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <div class="page">
+    <header class="top">
+      <div class="brand">
+        <div>
+        <div class="brand-logo">
+        <img src="assets/secondary.png" alt="Ever & Always Secondary Logo">
+        </div>
+
+        </div>
+      </div>
+    </header>
+
+    <!-- STAGE: only one panel visible at a time -->
+    <main class="stage" id="stage" aria-label="Photo booth stage">
+      <!-- CAMERA -->
+      <section class="panel camera-panel" id="cameraPanel" aria-label="Camera">
+        <div class="panel-head">
+          <h2>The Portrait Room</h2>
+          <p>Allow camera access, then press <strong>Start</strong>.</p>
+        </div>
+
+        <div class="camera-wrap">
+          <div class="frame">
+            <video id="video" playsinline autoplay muted></video>
+            <div id="flash" class="flash" aria-hidden="true"></div>
+            <div id="countdown" class="countdown" aria-live="polite"></div>
+          </div>
+
+          <div class="shot-row" aria-label="Captured shots">
+            <div class="shot">
+              <div class="shot-label">1</div>
+              <img id="thumb1" alt="Shot 1 preview" />
+            </div>
+            <div class="shot">
+              <div class="shot-label">2</div>
+              <img id="thumb2" alt="Shot 2 preview" />
+            </div>
+            <div class="shot">
+              <div class="shot-label">3</div>
+              <img id="thumb3" alt="Shot 3 preview" />
+            </div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button id="btn-start" class="btn primary">Start</button>
+          <button id="btn-retake" class="btn" disabled>Retake</button>
+        </div>
+
+        <div class="fineprint" id="status" aria-live="polite"></div>
+      </section>
+
+      <!-- STRIP (hidden on load; revealed after 3 shots) -->
+      <section class="panel strip-panel" id="stripPanel" aria-label="Photo strip">
+        <div class="panel-head">
+          <h2>Your Strip is Ready</h2>
+          <p>Press <strong>PRINT PHOTO</strong></p>
+        </div>
+
+        <div class="strip-area">
+          <div class="strip-shell" id="stripShell">
+            <canvas id="stripCanvas" width="600" height="1800" aria-label="Photo strip canvas"></canvas>
+          </div>
+
+          <div class="strip-actions">
+            <button id="btn-print" class="btn primary" disabled>PRINT PHOTO</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <span>© 2026 Ever & Always</span>
+    </footer>
+  </div>
+
+  <!-- hidden capture canvas -->
+  <canvas id="captureCanvas" width="1280" height="720" class="hidden"></canvas>
+
+  <script src="app.js"></script>
+</body>
+</html>
