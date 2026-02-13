@@ -29,14 +29,20 @@ body{
    GATE (premium landing)
 ========================= */
 .gate{
-  min-height: 100svh;
-  min-height: 100dvh;
+  /* ✅ force exact viewport height on mobile browsers */
+  height: 100svh;
+  height: 100dvh;
+  min-height: 0;
+
   display:flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
   text-align:center;
-  padding: 40px 20px;
+
+  /* ✅ prevent padding from pushing past viewport */
+  padding: clamp(18px, 4vh, 40px) 20px;
+
   transition: opacity .3s ease, transform .3s ease;
   overflow: hidden;
 }
@@ -343,15 +349,15 @@ video{
 
 .strip-shell{
   width: 100%;
-  max-width: 920px;          /* card needs space */
+  max-width: 920px;
   margin: 0 auto;
   background: var(--paper);
   border-radius: 18px;
   border: 1px solid rgba(26,26,26,.10);
   box-shadow: 0 18px 30px rgba(0,0,0,.10);
   padding: 14px;
-  height: auto;              /* ✅ remove fixed height */
-  overflow: visible;         /* ✅ don’t clip the card */
+  height: auto;
+  overflow: visible;
 }
 .strip-shell canvas{
   width: 100%;
@@ -359,16 +365,14 @@ video{
   display: block;
   border-radius: 12px;
 }
-/* Card canvas should scale responsively */
+
 #stripCanvas{
   width: 100%;
   height: auto;
   display: block;
-  border-radius: 12px;       /* optional: matches your soft corners */
+  border-radius: 12px;
 }
 
-/* keep your “printer feed” animation */
-/* If you keep the “printing” class, don’t use the old strip feed animation */
 .strip-shell.printing #stripCanvas{
   animation: none;
 }
@@ -381,7 +385,7 @@ video{
 
 /* Share toast */
 .share-toast{
-  max-height: 0;          /* ✅ collapses space */
+  max-height: 0;
   overflow: hidden;
   opacity: 0;
   transform: translateY(8px);
@@ -394,13 +398,13 @@ video{
   border: 1px solid rgba(26,26,26,.10);
   background: rgba(255,255,255,.70);
   border-radius: 14px;
-  padding: 0 20px;        /* keep padding minimal when closed */
+  padding: 0 20px;
   box-shadow: 0 14px 26px rgba(0,0,0,.06);
   text-align: center;
 }
 
 .share-toast.show{
-  max-height: 140px;      /* ✅ enough to fit your toast */
+  max-height: 140px;
   padding: 12px 12px 10px;
   opacity: 1;
   transform: translateY(0);
@@ -434,9 +438,7 @@ video{
 
 @media (max-width: 600px){
   .logo{ max-width: 200px; }
-  .gate{ padding: 22px 16px; }
   .logo-wrap{ margin-bottom: 18px; }
   .divider{ margin: 0 auto 18px; }
   .gate-foot{ margin-top: 14px; font-size: 11px; }
 }
-
