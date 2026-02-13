@@ -1,11 +1,18 @@
+// app.js (complete)
 /* Vintage Photo Booth
    - 3 photos with countdown
-   - GUARANTEED black & white (pixel-level grayscale) for:
-     capture, thumbs, strip, and download
+   - GUARANTEED black & white (pixel-level grayscale)
    - PRINT PHOTO = animation + download (no print dialog)
 */
 
 const els = {
+  // gate
+  gate: document.getElementById("gate"),
+  booth: document.getElementById("booth"),
+  btnEnter: document.getElementById("btn-enter"),
+  gateNote: document.getElementById("gateNote"),
+
+  // booth
   video: document.getElementById("video"),
   captureCanvas: document.getElementById("captureCanvas"),
   stripCanvas: document.getElementById("stripCanvas"),
@@ -17,6 +24,9 @@ const els = {
   btnStart: document.getElementById("btn-start"),
   btnRetake: document.getElementById("btn-retake"),
   btnPrint: document.getElementById("btn-print"),
+
+  btnCopyHashtag: document.getElementById("btn-copy-hashtag"),
+  shareToast: document.getElementById("shareToast"),
 
   thumb1: document.getElementById("thumb1"),
   thumb2: document.getElementById("thumb2"),
@@ -44,10 +54,38 @@ const INITIAL_LEFT = "R";
 const INITIAL_RIGHT = "L";
 
 /* =========
+   SHARE SETTINGS
+   ========= */
+const SHARE_HASHTAG = "#EverAndAlways";
+
+/* =========
    UI helpers
    ========= */
 function setStatus(msg) {
-  els.status.textContent = msg || "";
+  if (els.status) els.status.textContent = msg || "";
+}
+function setGateNote(msg) {
+  if (els.gateNote) els.gateNote.textContent = msg || "";
+}
+
+function showToast() {
+  if (!els.shareToast) return;
+  els.shareToast.classList.add("show");
+}
+function hideToast() {
+  if (!els.shareToast) return;
+  els.shareToast.classList.remove("show");
+}
+
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+async function fadeStage(ms = 300) {
+  if (!els.stage) return sleep(ms);
+  els.stage.classList.add("fading");
+  await sleep(ms);
+  els.stage.classList.remove("fading");
 }
 
 /**
@@ -98,7 +136,6 @@ function setStageHeight() {
   heightRaf = requestAnimationFrame(() => {
     const inStrip = document.body.classList.contains("show-strip");
     const target = inStrip ? els.stripPanel : els.cameraPanel;
-
     const h = measurePanelNaturalHeight(target);
 
     els.stage.style.minHeight = "0px";
@@ -106,22 +143,22 @@ function setStageHeight() {
   });
 }
 
+function showCameraView() {
+  document.body.classList.remove("show-strip");
+  hideToast();
+  setStageHeight();
+}
 function showStripView() {
   document.body.classList.add("show-strip");
   setStageHeight();
 }
 
-function showCameraView() {
-  document.body.classList.remove("show-strip");
-  setStageHeight();
-}
-
-function sleep(ms) {
-  return new Promise(r => setTimeout(r, ms));
-}
-
+/* =========
+   Camera init (only after entering)
+   ========= */
 async function initCamera() {
   try {
+    setGateNote("Requesting camera access…");
     setStatus("Requesting camera access…");
 
     stream = await navigator.mediaDevices.getUserMedia({
@@ -135,21 +172,34 @@ async function initCamera() {
       els.video.onloadedmetadata = () => res();
     });
 
+    setGateNote("");
     setStatus("Ready? Smile.");
+    els.btnStart.disabled = false;
+    return true;
   } catch (err) {
     console.error(err);
-    setStatus("Camera blocked. Please allow camera permission and reload.");
+    const msg = "Camera blocked. Please allow camera permission and reload.";
+    setGateNote(msg);
+    setStatus(msg);
+    els.btnStart.disabled = true;
+    return false;
   }
 }
 
+/* =========
+   Countdown
+   ========= */
 async function countdown(seconds = 3) {
   els.countdown.classList.add("show");
+
   for (let i = seconds; i >= 1; i--) {
     els.countdown.textContent = String(i);
     await sleep(750);
   }
-  els.countdown.textContent = "•";
-  await sleep(180);
+
+  els.countdown.textContent = "Smile…";
+  await sleep(520);
+
   els.countdown.classList.remove("show");
   els.countdown.textContent = "";
 }
@@ -401,6 +451,9 @@ async function drawStripPhotoBW(ctx, dataUrl, x, y, w, h) {
   ctx.restore();
 }
 
+/* =========
+   Flow controls
+   ========= */
 function enableActions(enabled) {
   els.btnPrint.disabled = !enabled;
   els.btnRetake.disabled = !enabled;
@@ -410,11 +463,8 @@ function resetSession() {
   shots = [];
   clearThumbs();
   enableActions(false);
+  hideToast();
   setStatus("Ready? Smile.");
-
-  // ensure start shows correctly
-  els.btnStart.disabled = false;
-
   setStageHeight();
 }
 
@@ -423,6 +473,7 @@ async function startSession() {
   busy = true;
 
   try {
+    hideToast();
     showCameraView();
     resetSession();
 
@@ -441,14 +492,16 @@ async function startSession() {
 
       await sleep(60);
       setStageHeight();
-
       await sleep(420);
     }
+
+    setStatus("Developing your film…");
+    await sleep(850);
 
     setStatus("Building your strip…");
     await buildStrip();
 
-    setStatus("Your strip is ready. Press PRINT PHOTO or Retake.");
+    setStatus("");
     enableActions(true);
 
     showStripView();
@@ -485,7 +538,7 @@ async function printLikeDownload() {
   els.stripShell.classList.add("printing");
 
   const downloadAtMs = 1750;
-  const resetAtMs = 2300;
+  const endAtMs = 2300;
 
   setTimeout(() => {
     downloadStripPNG();
@@ -495,42 +548,95 @@ async function printLikeDownload() {
     els.stripShell.classList.remove("printing");
     els.stripCanvas.style.transform = "translateY(0)";
 
-    // after printing, reset and return to camera
-    resetSession();
-    showCameraView();
-    requestAnimationFrame(() => setStageHeight());
+    showToast();
 
+    els.btnPrint.disabled = false;
+    els.btnRetake.disabled = false;
     busy = false;
-  }, resetAtMs);
+
+    setStageHeight();
+  }, endAtMs);
 }
 
 /* =========
    Events
    ========= */
+els.btnEnter.addEventListener("click", async () => {
+  if (busy) return;
+  busy = true;
+
+  try {
+    // turn on booth UI, fade the gate away
+    els.btnEnter.disabled = true;
+    setGateNote("Requesting camera access…");
+
+    // show booth container
+    document.body.classList.add("booth-on");
+    els.booth.setAttribute("aria-hidden", "false");
+
+    // fade gate out
+    els.gate.classList.add("is-hiding");
+    await sleep(300);
+
+    // init camera
+    const ok = await initCamera();
+    if (!ok) {
+      els.btnEnter.disabled = false;
+      busy = false;
+      return;
+    }
+
+    // hide gate from layout entirely after success
+    els.gate.style.display = "none";
+    setGateNote("");
+
+    showCameraView();
+    resetSession();
+    await buildStrip(); // keep strip canvas ready
+    setStageHeight();
+  } finally {
+    busy = false;
+  }
+});
+
 els.btnStart.addEventListener("click", startSession);
 
 els.btnRetake.addEventListener("click", async () => {
   if (busy) return;
+  busy = true;
 
-  // clean reset + return to camera (auto-switch remains for next run)
-  resetSession();
-  showCameraView();
-
-  // keep strip canvas ready (optional)
-  await buildStrip();
-  setStageHeight();
+  try {
+    hideToast();
+    setStatus("Resetting the Portrait Room…");
+    await fadeStage(300);
+    resetSession();
+    showCameraView();
+    setStatus("Ready? Smile.");
+  } finally {
+    busy = false;
+  }
 });
 
 els.btnPrint.addEventListener("click", printLikeDownload);
 
-/* =========
-   Init
-   ========= */
-showCameraView();
-initCamera().then(async () => {
-  await buildStrip();
-  resetSession();
-  setStageHeight();
+els.btnCopyHashtag?.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(SHARE_HASHTAG);
+    const prev = els.btnCopyHashtag.textContent;
+    els.btnCopyHashtag.textContent = "Copied";
+    setTimeout(() => (els.btnCopyHashtag.textContent = prev), 900);
+  } catch {
+    // fine to silently fail
+  }
 });
 
 window.addEventListener("resize", () => setStageHeight());
+
+/* =========
+   Init (gate only)
+   ========= */
+document.body.classList.remove("booth-on");
+document.body.classList.remove("show-strip");
+els.booth.setAttribute("aria-hidden", "true");
+hideToast();
+setGateNote("");
