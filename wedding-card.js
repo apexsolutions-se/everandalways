@@ -5,8 +5,8 @@
    - GUARANTEED black & white (pixel-level grayscale)
    - Output: 2x2 wedding card
        Row 1: Photo 1 | Photo 2
-       Row 2: Photo 3 | TEXT PNG (you design this in Figma, export transparent PNG)
-   - DOWNLOAD = animation + download (no print dialog)
+       Row 2: Photo 3 | TEXT PNG (transparent)
+   - DOWNLOAD = optional animation + download (no print dialog)
 */
 
 const els = {
@@ -42,27 +42,27 @@ const els = {
 };
 
 let stream = null;
-let shots = [];
 let busy = false;
+
+// store BOTH data urls + decoded images (so redraw never “pops”)
+let shotData = [];     // ["data:image/jpeg...", ...]
+let shotImgs = [];     // [HTMLImageElement, ...] decoded
 
 /* =========
    CUSTOMIZE
    ========= */
 const SHARE_HASHTAG = "#EverAndAlways";
 
-/* ✅ Your custom wedding text PNG (transparent background) */
-const TEXT_PNG_SRC = "assets/wedding-text.png"; // <-- put your PNG here
-// How the PNG should fit inside the 4th block:
-// "contain" = show whole PNG (recommended)
-// "cover"   = fill the block (may crop)
-const TEXT_PNG_FIT = "contain";
+const TEXT_PNG_SRC = "assets/wedding-text.png"; // transparent PNG you made
+const TEXT_PNG_FIT = "contain"; // "contain" or "cover"
 
-/* Layout tuning (easy tweaks) */
-const CARD_PAD = 28;   // outer padding of the whole card
-const CARD_GAP = 16;   // gap between the 4 blocks
-const CELL_INSET = 0;  // optional inner padding inside each cell
+const CARD_PAD = 28;
+const CARD_GAP = 16;
+const CELL_INSET = 0;
 
-let textOverlayImg = null; // preloaded PNG image
+// text overlay cached + decoded
+let textOverlayImg = null;
+let textOverlayReady = null;
 
 /* =========
    UI helpers
@@ -92,10 +92,9 @@ async function fadeStage(ms = 300) {
   els.stage.classList.remove("fading");
 }
 
-/**
- * Panels are absolute (inset:0) so we measure using an offscreen clone
- * with position:static to get natural height.
- */
+/* =========
+   Stage height helper
+   ========= */
 function measurePanelNaturalHeight(panel) {
   if (!panel || !els.stage) return 720;
 
@@ -158,28 +157,43 @@ function showStripView() {
 }
 
 /* =========
-   Assets preload
+   Image loading (decode to avoid “glitch”)
    ========= */
 function loadImage(src) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    // for local assets this is fine; keep same-origin
-    img.onload = () => resolve(img);
+    img.onload = async () => {
+      try {
+        // decode() prevents half-painted frames in some browsers
+        if (img.decode) await img.decode();
+      } catch {
+        // decode can fail sometimes; ignore
+      }
+      resolve(img);
+    };
     img.onerror = reject;
     img.src = src;
   });
 }
 
-async function preloadTextOverlay() {
-  try {
-    textOverlayImg = await loadImage(TEXT_PNG_SRC);
-  } catch {
-    textOverlayImg = null; // fail silently; we’ll render blank block
-  }
+function ensureTextOverlay() {
+  if (textOverlayReady) return textOverlayReady;
+
+  textOverlayReady = loadImage(TEXT_PNG_SRC)
+    .then((img) => {
+      textOverlayImg = img;
+      return img;
+    })
+    .catch(() => {
+      textOverlayImg = null;
+      return null;
+    });
+
+  return textOverlayReady;
 }
 
 /* =========
-   Camera init (only after entering)
+   Camera init
    ========= */
 async function initCamera() {
   try {
@@ -212,19 +226,16 @@ async function initCamera() {
 }
 
 /* =========
-   Countdown
+   Countdown + flash
    ========= */
 async function countdown(seconds = 3) {
   els.countdown.classList.add("show");
-
   for (let i = seconds; i >= 1; i--) {
     els.countdown.textContent = String(i);
     await sleep(750);
   }
-
   els.countdown.textContent = "Smile…";
   await sleep(520);
-
   els.countdown.classList.remove("show");
   els.countdown.textContent = "";
 }
@@ -236,21 +247,19 @@ function flash() {
 }
 
 /* =========
-   GUARANTEED GRAYSCALE (pixel conversion)
+   GUARANTEED GRAYSCALE
    ========= */
 function toGrayscaleInPlace(imageData) {
   const d = imageData.data;
   for (let i = 0; i < d.length; i += 4) {
-    const r = d[i],
-      g = d[i + 1],
-      b = d[i + 2];
+    const r = d[i], g = d[i + 1], b = d[i + 2];
     const y = (0.2126 * r + 0.7152 * g + 0.0722 * b) | 0;
     d[i] = d[i + 1] = d[i + 2] = y;
   }
   return imageData;
 }
 
-/* Capture 1 frame -> BW JPEG dataURL */
+/* Capture -> BW JPEG dataURL */
 function captureFrame() {
   const c = els.captureCanvas;
   const ctx = c.getContext("2d", { willReadFrequently: true });
@@ -267,19 +276,14 @@ function captureFrame() {
   ctx.drawImage(els.video, 0, 0, vw, vh);
   ctx.restore();
 
-  // grayscale (guaranteed)
   const imgData = ctx.getImageData(0, 0, vw, vh);
   toGrayscaleInPlace(imgData);
   ctx.putImageData(imgData, 0, 0);
 
-  // subtle vignette
+  // vignette
   const g = ctx.createRadialGradient(
-    vw / 2,
-    vh / 2,
-    Math.min(vw, vh) * 0.18,
-    vw / 2,
-    vh / 2,
-    Math.max(vw, vh) * 0.68
+    vw / 2, vh / 2, Math.min(vw, vh) * 0.18,
+    vw / 2, vh / 2, Math.max(vw, vh) * 0.68
   );
   g.addColorStop(0, "rgba(0,0,0,0)");
   g.addColorStop(1, "rgba(0,0,0,0.28)");
@@ -292,7 +296,6 @@ function captureFrame() {
 function setThumb(index, dataUrl) {
   const img = [els.thumb1, els.thumb2, els.thumb3][index];
   if (!img) return;
-
   img.onload = () => setStageHeight();
   img.src = dataUrl;
   img.parentElement.classList.add("filled");
@@ -306,7 +309,7 @@ function clearThumbs() {
 }
 
 /* =========
-   Card build (2×2 like your reference)
+   Card drawing helpers
    ========= */
 function coverRect(srcW, srcH, dstW, dstH) {
   const srcRatio = srcW / srcH;
@@ -347,18 +350,17 @@ function containRect(srcW, srcH, dstW, dstH) {
   return { dx, dy, dw, dh };
 }
 
-async function drawPhotoFillBW(ctx, dataUrl, x, y, w, h) {
-  if (!dataUrl) return;
+async function drawPhotoFillBW(ctx, imgObj, x, y, w, h) {
+  if (!imgObj) return;
 
-  const img = await loadImage(dataUrl);
-  const { sx, sy, sw, sh } = coverRect(img.width, img.height, w, h);
+  const { sx, sy, sw, sh } = coverRect(imgObj.width, imgObj.height, w, h);
 
   const tmp = document.createElement("canvas");
   tmp.width = w;
   tmp.height = h;
   const tctx = tmp.getContext("2d", { willReadFrequently: true });
 
-  tctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+  tctx.drawImage(imgObj, sx, sy, sw, sh, 0, 0, w, h);
 
   const imgData = tctx.getImageData(0, 0, w, h);
   toGrayscaleInPlace(imgData);
@@ -368,13 +370,11 @@ async function drawPhotoFillBW(ctx, dataUrl, x, y, w, h) {
 }
 
 function drawTextOverlay(ctx, x, y, w, h) {
-  // Always keep the 4th block white
   ctx.save();
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(x, y, w, h);
 
   if (!textOverlayImg) {
-    // If PNG not found, leave clean white block (no error text on wedding site)
     ctx.restore();
     return;
   }
@@ -397,6 +397,9 @@ function drawTextOverlay(ctx, x, y, w, h) {
 }
 
 async function buildCard() {
+  // ✅ Make sure the overlay PNG is READY before drawing (fixes bottom-right “glitch”)
+  await ensureTextOverlay();
+
   const canvas = els.stripCanvas;
   const ctx = canvas.getContext("2d");
 
@@ -405,11 +408,9 @@ async function buildCard() {
 
   ctx.clearRect(0, 0, W, H);
 
-  // plain white card background
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, W, H);
 
-  // layout
   const pad = CARD_PAD;
   const gap = CARD_GAP;
 
@@ -424,17 +425,15 @@ async function buildCard() {
   const y1 = pad;
   const y2 = pad + cellH + gap;
 
-  // photos (no borders)
-  await drawPhotoFillBW(ctx, shots[0], x1, y1, cellW, cellH);
-  await drawPhotoFillBW(ctx, shots[1], x2, y1, cellW, cellH);
-  await drawPhotoFillBW(ctx, shots[2], x1, y2, cellW, cellH);
+  await drawPhotoFillBW(ctx, shotImgs[0], x1, y1, cellW, cellH);
+  await drawPhotoFillBW(ctx, shotImgs[1], x2, y1, cellW, cellH);
+  await drawPhotoFillBW(ctx, shotImgs[2], x1, y2, cellW, cellH);
 
-  // text PNG in the 4th block
   drawTextOverlay(ctx, x2, y2, cellW, cellH);
 }
 
 /* =========
-   Flow controls
+   Flow
    ========= */
 function enableActions(enabled) {
   els.btnPrint.disabled = !enabled;
@@ -442,7 +441,8 @@ function enableActions(enabled) {
 }
 
 function resetSession() {
-  shots = [];
+  shotData = [];
+  shotImgs = [];
   clearThumbs();
   enableActions(false);
   hideToast();
@@ -469,16 +469,18 @@ async function startSession() {
       await sleep(120);
 
       const dataUrl = captureFrame();
-      shots.push(dataUrl);
+      shotData[i] = dataUrl;
       setThumb(i, dataUrl);
 
-      await sleep(60);
+      // ✅ decode now (so later redraw/download is instant & stable)
+      shotImgs[i] = await loadImage(dataUrl);
+
+      await sleep(120);
       setStageHeight();
-      await sleep(420);
     }
 
     setStatus("Developing your film…");
-    await sleep(850);
+    await sleep(650);
 
     setStatus("Building your card…");
     await buildCard();
@@ -495,14 +497,24 @@ async function startSession() {
   }
 }
 
-function downloadCardPNG() {
-  const url = els.stripCanvas.toDataURL("image/png");
+/* =========
+   Download (keeps your “printing” class animation)
+   ========= */
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "wedding-photo-card.png";
+  a.download = filename;
+  a.style.display = "none";
   document.body.appendChild(a);
+
+  // reduce scroll/focus jump
+  const sx = window.scrollX, sy = window.scrollY;
   a.click();
+  window.scrollTo(sx, sy);
+
   a.remove();
+  URL.revokeObjectURL(url);
 }
 
 async function downloadWithAnimation() {
@@ -512,32 +524,37 @@ async function downloadWithAnimation() {
   els.btnPrint.disabled = true;
   els.btnRetake.disabled = true;
 
-  // refresh card before download
-  await buildCard();
+  try {
+    // ✅ DO NOT rebuild while animating; just ensure canvas is correct once
+    await buildCard();
 
-  els.stripShell.classList.remove("printing");
-  void els.stripShell.offsetWidth;
-  els.stripShell.classList.add("printing");
-
-  const downloadAtMs = 1750;
-  const endAtMs = 2300;
-
-  setTimeout(() => {
-    downloadCardPNG();
-  }, downloadAtMs);
-
-  setTimeout(() => {
+    // trigger your CSS animation (whatever it is)
     els.stripShell.classList.remove("printing");
-    els.stripCanvas.style.transform = "translateY(0)";
+    void els.stripShell.offsetWidth;
+    els.stripShell.classList.add("printing");
 
-    showToast();
+    // download after a short delay (so the animation “starts” visually)
+    setTimeout(() => {
+      els.stripCanvas.toBlob((blob) => {
+        if (blob) downloadBlob(blob, "wedding-photo-card.png");
+      }, "image/png");
+    }, 350);
 
+    setTimeout(() => {
+      els.stripShell.classList.remove("printing");
+      showToast();
+      els.btnPrint.disabled = false;
+      els.btnRetake.disabled = false;
+      busy = false;
+      setStageHeight();
+    }, 900);
+  } catch (e) {
+    console.error(e);
+    setStatus("Download failed. Please try again.");
     els.btnPrint.disabled = false;
     els.btnRetake.disabled = false;
     busy = false;
-
-    setStageHeight();
-  }, endAtMs);
+  }
 }
 
 /* =========
@@ -551,32 +568,28 @@ els.btnEnter.addEventListener("click", async () => {
     els.btnEnter.disabled = true;
     setGateNote("Requesting camera access…");
 
-    // show booth container
     document.body.classList.add("booth-on");
     els.booth.setAttribute("aria-hidden", "false");
 
-    // fade gate out
     els.gate.classList.add("is-hiding");
     await sleep(300);
 
-    // preload text PNG (don’t block UX if it fails)
-    preloadTextOverlay();
+    // ✅ start loading overlay immediately
+    ensureTextOverlay();
 
-    // init camera
     const ok = await initCamera();
     if (!ok) {
       els.btnEnter.disabled = false;
       return;
     }
 
-    // hide gate from layout after success
     els.gate.style.display = "none";
     setGateNote("");
 
     showCameraView();
     resetSession();
 
-    // build an "empty" card once (so preview area is ready)
+    // build a clean blank card preview
     await buildCard();
     setStageHeight();
   } finally {
@@ -611,17 +624,17 @@ els.btnCopyHashtag?.addEventListener("click", async () => {
     els.btnCopyHashtag.textContent = "Copied";
     setTimeout(() => (els.btnCopyHashtag.textContent = prev), 900);
   } catch {
-    // silently fail is OK
+    // ok
   }
 });
 
 window.addEventListener("resize", () => setStageHeight());
 
 /* =========
-   Init (gate only)
+   Init
    ========= */
 document.body.classList.remove("booth-on");
 document.body.classList.remove("show-strip");
-els.booth.setAttribute("aria-hidden", "true");
+els.booth?.setAttribute("aria-hidden", "true");
 hideToast();
 setGateNote("");
