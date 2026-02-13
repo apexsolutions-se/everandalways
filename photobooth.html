@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Ever & Always</title>
+  <title>Vintage Online Photo Booth</title>
   <meta name="description" content="Take 3 photos and get a classic vintage photo strip." />
-    <link rel="icon" type="image/png" href="assets/favicon.png" />
+  <link rel="icon" type="image/png" href="assets/favicon.png" />
   <link rel="apple-touch-icon" href="assets/favicon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,10 +18,9 @@
     <header class="top">
       <div class="brand">
         <div>
-        <div class="brand-logo">
-        <img src="assets/secondary.png" alt="Ever & Always Secondary Logo">
-        </div>
-
+          <div class="brand-logo">
+            <img src="assets/secondary.png" alt="Ever & Always Secondary Logo">
+          </div>
         </div>
       </div>
     </header>
@@ -60,7 +59,6 @@
 
         <div class="controls">
           <button id="btn-start" class="btn primary">Start</button>
-          <button id="btn-retake" class="btn" disabled>Retake</button>
         </div>
 
         <div class="fineprint" id="status" aria-live="polite"></div>
@@ -70,7 +68,7 @@
       <section class="panel strip-panel" id="stripPanel" aria-label="Photo strip">
         <div class="panel-head">
           <h2>Your Strip is Ready</h2>
-          <p>Press <strong>PRINT PHOTO</strong></p>
+          <p>Press <strong>PRINT PHOTO</strong> or <strong>RETAKE</strong></p>
         </div>
 
         <div class="strip-area">
@@ -80,6 +78,7 @@
 
           <div class="strip-actions">
             <button id="btn-print" class="btn primary" disabled>PRINT PHOTO</button>
+            <button id="btn-retake" class="btn" disabled>Retake</button>
           </div>
         </div>
       </section>
