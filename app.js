@@ -44,14 +44,14 @@ let busy = false;
 /* =========
    CUSTOMIZE THESE (your bottom text)
    ========= */
-const STRIP_DATE = "17.02.2026";
-const STRIP_NAMES = "RENDS • LYKA";
+const STRIP_DATE = "19.12.2029";
+const STRIP_NAMES = "SHREK • FIONA";
 
 /* =========
    CUSTOMIZE INITIALS HERE
    ========= */
-const INITIAL_LEFT = "R";
-const INITIAL_RIGHT = "L";
+const INITIAL_LEFT = "S";
+const INITIAL_RIGHT = "F";
 
 /* =========
    SHARE SETTINGS
